@@ -1,5 +1,8 @@
 plugins {
     id 'java'
+    // Load one Paperweight implementation for every version module so Gradle's
+    // configuration cache can restore its shared setup service consistently.
+    id 'io.papermc.paperweight.userdev' version '2.0.0-beta.24' apply false
 }
 
 group = 'com.swiftlicious.versionbridge'
