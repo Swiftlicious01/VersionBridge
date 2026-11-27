@@ -31,6 +31,16 @@ subprojects {
     }
     tasks.withType(JavaCompile).configureEach {
         options.encoding = 'UTF-8'
+        // Older servers must not be handed Java 26 bytecode just because the
+        // latest adapter needs a Java 26 compiler.
+        if (project.name ==~ /(?:paper|spigot)-v1_(?:17|18|19)_R\d+/ ||
+                project.name ==~ /(?:paper|spigot)-v1_20_R[123]/) {
+            options.release = 17
+        } else if (project.name ==~ /(?:paper|spigot)-v1_(?:20|21)_R\d+/) {
+            options.release = 21
+        } else {
+            options.release = 26
+        }
     }
     sourceSets.all {
         allSource.exclude('**/.DS_Store')

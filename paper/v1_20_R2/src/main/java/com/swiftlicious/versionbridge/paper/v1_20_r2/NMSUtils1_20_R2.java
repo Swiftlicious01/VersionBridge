@@ -76,6 +76,7 @@ import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundBlockEventPacket;
 import net.minecraft.network.protocol.game.ClientboundBossEventPacket;
+import net.minecraft.network.protocol.game.ClientboundTabListPacket;
 import net.minecraft.network.protocol.game.ClientboundBundlePacket;
 import net.minecraft.network.protocol.game.ClientboundInitializeBorderPacket;
 import net.minecraft.network.protocol.game.ClientboundOpenScreenPacket;
@@ -181,6 +182,14 @@ public class NMSUtils1_20_R2 implements NMSHandler {
 	}
 
 	// Messages and notifications
+
+	@Override
+	public void sendPlayerListHeaderFooter(Player player, String header, String footer) {
+		Component top = CraftChatMessage.fromStringOrNull(header, true);
+		Component bottom = CraftChatMessage.fromStringOrNull(footer, true);
+		((CraftPlayer) player).getHandle().connection.send(new ClientboundTabListPacket(
+				top == null ? Component.literal("") : top, bottom == null ? Component.literal("") : bottom));
+	}
 
 	@Override
 	public Object getMinecraftComponent(String json) {

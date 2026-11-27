@@ -36,6 +36,9 @@ public interface NMSHandler {
 
 	// Messages and notifications
 
+	/** Sends colored tab-list text using this server version's native packet. */
+	abstract void sendPlayerListHeaderFooter(@NotNull Player player, @NotNull String header, @NotNull String footer);
+
 	/**
 	 * Converts a JSON string into a Minecraft chat component.
 	 * 
