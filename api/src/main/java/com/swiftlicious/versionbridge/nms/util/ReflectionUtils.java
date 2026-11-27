@@ -59,6 +59,30 @@ public class ReflectionUtils {
 		}
 	}
 
+	/** Locate an instance field by type across a mapped NMS class hierarchy. */
+	@NotNull
+	public static Field getInstanceFieldInHierarchy(@NotNull Class<?> clazz, @NotNull Class<?> type,
+			@NotNull String preferredName)
+			throws NoSuchFieldException {
+		for (Class<?> current = clazz; current != null; current = current.getSuperclass()) {
+			try {
+				Field field = current.getDeclaredField(preferredName);
+				if (field.getType() == type && !Modifier.isStatic(field.getModifiers())) {
+					return setAccessible(field);
+				}
+			} catch (NoSuchFieldException ignored) {
+			}
+		}
+		for (Class<?> current = clazz; current != null; current = current.getSuperclass()) {
+			for (Field field : current.getDeclaredFields()) {
+				if (field.getType() == type && !Modifier.isStatic(field.getModifiers())) {
+					return setAccessible(field);
+				}
+			}
+		}
+		throw new NoSuchFieldException("No instance field of type " + type.getName() + " in " + clazz.getName());
+	}
+
 	@NotNull
 	public static Field getDeclaredField(@NotNull Class<?> clazz, @NotNull String... possibleNames) {
 		final List<String> possibleNameList = Arrays.asList(possibleNames);

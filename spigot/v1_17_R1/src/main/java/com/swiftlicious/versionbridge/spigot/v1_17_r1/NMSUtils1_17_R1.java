@@ -65,7 +65,6 @@ import com.swiftlicious.versionbridge.nms.util.BossBarUtils;
 import com.swiftlicious.versionbridge.nms.util.SelfIncreaseEntityID;
 
 import io.netty.buffer.Unpooled;
-import io.netty.util.concurrent.GenericFutureListener;
 import net.minecraft.advancements.Advancement;
 import net.minecraft.advancements.AdvancementProgress;
 import net.minecraft.advancements.AdvancementRewards;
@@ -76,7 +75,6 @@ import net.minecraft.advancements.critereon.ImpossibleTrigger;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.Registry;
-import net.minecraft.network.Connection;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.ChatType;
 import net.minecraft.network.chat.Component;
@@ -164,7 +162,6 @@ public class NMSUtils1_17_R1 implements NMSHandler {
 	private static final int FAKE_FORTRESS_PIECE_DEPTH = 1_904_271;
 
 	private final Field fishingHookOwnerUUIDField;
-	private final Method sendPacketImmediateMethod;
 
 	private Random source = new SecureRandom();
 
@@ -201,17 +198,10 @@ public class NMSUtils1_17_R1 implements NMSHandler {
 			throw new RuntimeException("Failed to get time until lured", e);
 		}
 		try {
-			fishingHookOwnerUUIDField = FishingHook.class.getDeclaredField("ownerUUID");
+			fishingHookOwnerUUIDField = com.swiftlicious.versionbridge.nms.util.ReflectionUtils.getInstanceFieldInHierarchy(FishingHook.class, UUID.class, "ownerUUID");
 			fishingHookOwnerUUIDField.setAccessible(true);
 		} catch (Exception e) {
 			throw new RuntimeException("Could not access FishingHook.ownerUUID", e);
-		}
-		try {
-			sendPacketImmediateMethod = Connection.class.getDeclaredMethod("writePacket", Packet.class,
-					GenericFutureListener.class, Boolean.class);
-			sendPacketImmediateMethod.setAccessible(true);
-		} catch (ReflectiveOperationException e) {
-			throw new RuntimeException("Failed to get send packet method", e);
 		}
 		FluidDataInstance.register(LavaFluid.Source.class, FallingFluidDataInstance::new);
 		FluidDataInstance.register(WaterFluid.Source.class, FallingFluidDataInstance::new);
@@ -300,11 +290,7 @@ public class NMSUtils1_17_R1 implements NMSHandler {
 	}
 
 	private void sendPacketImmediately(ServerPlayer serverPlayer, Packet<ClientGamePacketListener> packet) {
-		try {
-			sendPacketImmediateMethod.invoke(serverPlayer.connection.connection, packet, null, true);
-		} catch (ReflectiveOperationException e) {
-			throw new RuntimeException("Failed to send packet", e);
-		}
+		serverPlayer.connection.send(packet);
 	}
 
 	// Boss bars

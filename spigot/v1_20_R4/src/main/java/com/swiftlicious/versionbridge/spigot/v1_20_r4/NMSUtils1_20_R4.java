@@ -191,7 +191,7 @@ public class NMSUtils1_20_R4 implements NMSHandler {
 			throw new RuntimeException("Failed to get hook biting state", e);
 		}
 		try {
-			fishingHookOwnerUUIDField = FishingHook.class.getDeclaredField("ownerUUID");
+			fishingHookOwnerUUIDField = com.swiftlicious.versionbridge.nms.util.ReflectionUtils.getInstanceFieldInHierarchy(FishingHook.class, UUID.class, "ownerUUID");
 			fishingHookOwnerUUIDField.setAccessible(true);
 		} catch (Exception e) {
 			throw new RuntimeException("Could not access FishingHook.ownerUUID", e);

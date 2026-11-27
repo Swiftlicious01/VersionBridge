@@ -7,6 +7,19 @@ plugins {
 
 group = 'com.swiftlicious.versionbridge'
 
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+configurations {
+    specialSource
+}
+
+dependencies {
+    specialSource 'net.md-5:SpecialSource:1.11.5'
+}
+
 subprojects {
     group = rootProject.group
     version = rootProject.version
@@ -71,15 +84,70 @@ class CompactArchives {
 def adapters = subprojects.findAll {
     it.name ==~ /(?:paper|spigot)-(?:v\d+_\d+_R\d+|R\d+_\d+)/
 }
+def runtimeAdapters = adapters.collectEntries { adapter ->
+    evaluationDependsOn(adapter.path)
+    def jar = adapter.tasks.named('jar').flatMap { it.archiveFile }
+    def mappedSpigot = adapter.name.startsWith('spigot-v')
+    if (!mappedSpigot) return [(adapter.name): jar]
+
+    // BuildTools compiles these adapters against Mojang names. Spigot's runtime
+    // uses its own names, so publish the two-stage remapped jar instead.
+    def spigotDependency = adapter.configurations.compileOnly.dependencies.find {
+        it.group == 'org.spigotmc' && it.name == 'spigot'
+    }
+    def mcVersion = spigotDependency.version
+    def mappingsRoot = "org.spigotmc:minecraft-server:${mcVersion}"
+    def mojangMappings = adapter.configurations.detachedConfiguration(
+        adapter.dependencies.create("${mappingsRoot}:maps-mojang@txt"))
+    def spigotMappings = adapter.configurations.detachedConfiguration(
+        adapter.dependencies.create("${mappingsRoot}:maps-spigot@csrg"))
+    def mojangServer = adapter.configurations.detachedConfiguration(
+        adapter.dependencies.create("org.spigotmc:spigot:${mcVersion}:remapped-mojang"))
+    def obfuscatedServer = adapter.configurations.detachedConfiguration(
+        adapter.dependencies.create("org.spigotmc:spigot:${mcVersion}:remapped-obf"))
+    def obfuscated = layout.buildDirectory.file("remapped/${adapter.name}-obf.jar")
+    def runtime = layout.buildDirectory.file("remapped/${adapter.name}.jar")
+
+    def remapMojang = tasks.register("${adapter.name}-remapMojang", JavaExec) {
+        dependsOn adapter.tasks.named('jar')
+        // The matching server jar supplies inherited method names during remap.
+        classpath = configurations.specialSource + mojangServer
+        mainClass = 'net.md_5.specialsource.SpecialSource'
+        inputs.file(jar)
+        inputs.files(mojangMappings)
+        outputs.file(obfuscated)
+        doFirst { obfuscated.get().asFile.parentFile.mkdirs() }
+        argumentProviders.add({ [
+            '-i', jar.get().asFile.absolutePath,
+            '-o', obfuscated.get().asFile.absolutePath,
+            '-m', mojangMappings.singleFile.absolutePath,
+            '-r', '-l', '-q'
+        ] } as org.gradle.process.CommandLineArgumentProvider)
+    }
+    def remapSpigot = tasks.register("${adapter.name}-remapSpigot", JavaExec) {
+        dependsOn remapMojang
+        classpath = configurations.specialSource + obfuscatedServer
+        mainClass = 'net.md_5.specialsource.SpecialSource'
+        inputs.file(obfuscated)
+        inputs.files(spigotMappings)
+        outputs.file(runtime)
+        argumentProviders.add({ [
+            '-i', obfuscated.get().asFile.absolutePath,
+            '-o', runtime.get().asFile.absolutePath,
+            '-m', spigotMappings.singleFile.absolutePath,
+            '-l', '-q'
+        ] } as org.gradle.process.CommandLineArgumentProvider)
+    }
+    [(adapter.name): runtime]
+}
 def adapterDirectory = layout.buildDirectory.dir('dist/adapters').get().asFile
 def manifestFile = layout.buildDirectory.file('dist/runtime-adapters.sha256').get().asFile
 def hubVersion = version.toString()
 
 tasks.register('adapterAssets', Sync) {
-    dependsOn adapters.collect { it.tasks.named('jar') }
-    adapters.each { adapter ->
-        def jar = adapter.tasks.named('jar').flatMap { it.archiveFile }
-        def adapterName = adapter.name
+    dependsOn tasks.matching { it.name.endsWith('-remapSpigot') }
+    dependsOn adapters.findAll { !it.name.startsWith('spigot-v') }.collect { it.tasks.named('jar') }
+    runtimeAdapters.each { adapterName, jar ->
         from(jar) { rename { "${adapterName}.jar" } }
     }
     into(adapterDirectory)
