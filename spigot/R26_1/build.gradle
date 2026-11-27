@@ -1,0 +1,24 @@
+plugins {
+    id 'java'
+}
+
+dependencies {
+    // Spigot 26.1
+    compileOnly 'org.spigotmc:spigot:26.1.2-R0.1-SNAPSHOT'
+    
+    // Shared internal API module
+    compileOnly project(":api")
+}
+
+java {
+    // Java 25 (required for Spigot 26.1)
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+compileJava {
+    // UTF-8 encoding and Java release compatibility
+    options.encoding = 'UTF-8'
+    options.release.set(25)
+}

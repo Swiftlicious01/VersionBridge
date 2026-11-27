@@ -1,0 +1,100 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.swiftlicious.versionbridge'
+
+subprojects {
+    group = rootProject.group
+    version = rootProject.version
+    apply plugin: 'java'
+    apply plugin: 'eclipse'
+
+    eclipse.project.name = "VersionBridge-${project.name}"
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven { url = 'https://repo.papermc.io/repository/maven-public' }
+        maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
+    }
+
+    dependencies {
+        compileOnly 'org.jetbrains:annotations:26.1.0'
+    }
+
+    java {
+        toolchain { languageVersion = JavaLanguageVersion.of(26) }
+    }
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+    }
+    sourceSets.all {
+        allSource.exclude('**/.DS_Store')
+        resources.exclude('**/.DS_Store')
+    }
+    tasks.withType(Jar).configureEach {
+        exclude('**/.DS_Store')
+    }
+}
+
+class CompactArchives {
+    static void copyZip(File source, OutputStream output) {
+        new java.util.zip.ZipFile(source).withCloseable { input ->
+            new java.util.zip.ZipOutputStream(output).withCloseable { zip ->
+                input.entries().each { original ->
+                    def entry = new java.util.zip.ZipEntry(original)
+                    entry.setMethod(java.util.zip.ZipEntry.STORED)
+                    entry.setCompressedSize(original.size)
+                    zip.putNextEntry(entry)
+                    input.getInputStream(original).withCloseable { it.transferTo(zip) }
+                    zip.closeEntry()
+                }
+            }
+        }
+    }
+}
+
+def adapters = subprojects.findAll {
+    it.name ==~ /(?:paper|spigot)-(?:v\d+_\d+_R\d+|R\d+_\d+)/
+}
+def adapterDirectory = layout.buildDirectory.dir('dist/adapters').get().asFile
+def manifestFile = layout.buildDirectory.file('dist/runtime-adapters.sha256').get().asFile
+def hubVersion = version.toString()
+
+tasks.register('adapterAssets', Sync) {
+    dependsOn adapters.collect { it.tasks.named('jar') }
+    adapters.each { adapter ->
+        def jar = adapter.tasks.named('jar').flatMap { it.archiveFile }
+        def adapterName = adapter.name
+        from(jar) { rename { "${adapterName}.jar" } }
+    }
+    into(adapterDirectory)
+    inputs.property('hubVersion', hubVersion)
+    outputs.file(manifestFile)
+
+    doLast {
+        def checksums = []
+        adapterDirectory.listFiles().findAll { it.name.endsWith('.jar') }.each { file ->
+            def compact = new File(file.parentFile, file.name + '.compact')
+            try {
+                CompactArchives.copyZip(file, new FileOutputStream(compact))
+                java.nio.file.Files.move(compact.toPath(), file.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            } finally {
+                compact.delete()
+            }
+            def digest = java.security.MessageDigest.getInstance('SHA-256')
+            file.withInputStream { input ->
+                byte[] buffer = new byte[16384]
+                for (int read; (read = input.read(buffer)) != -1;) digest.update(buffer, 0, read)
+            }
+            checksums.add("${java.util.HexFormat.of().formatHex(digest.digest())} ${file.name}")
+        }
+        manifestFile.setText("# version=${hubVersion}\n" + checksums.sort().join('\n') + '\n', 'UTF-8')
+    }
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('adapterAssets')
+}

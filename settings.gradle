@@ -1,0 +1,23 @@
+rootProject.name = 'VersionBridge'
+
+include(':api')
+
+['paper', 'spigot'].each { parent ->
+    file(parent).listFiles()
+        ?.findAll { it.isDirectory() && it.name ==~ /(?:v\d+_\d+_R\d+|R\d+_\d+)/ }
+        ?.each { directory ->
+            // Flat Gradle paths avoid empty Paper and Spigot parent projects in Eclipse.
+            def path = ":${parent}-${directory.name}"
+            include(path)
+            project(path).projectDir = directory
+        }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+        maven { url = 'https://repo.papermc.io/repository/maven-public' }
+        maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
+    }
+}

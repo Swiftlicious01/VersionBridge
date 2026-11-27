@@ -1,0 +1,22 @@
+dependencies {
+    // Paper API
+    compileOnly "io.papermc.paper:paper-api:1.20.4-R0.1-SNAPSHOT"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+description = "Shared NMS adapter API"
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release.set(17)
+}
+
+sourceSets.all {
+    allSource.exclude("**/.DS_Store")
+    resources.exclude("**/.DS_Store")
+}

@@ -1,0 +1,7 @@
+dependencies {
+    // Spigot 1.21.3
+    compileOnly 'org.spigotmc:spigot:1.21.3-R0.1-SNAPSHOT:remapped-mojang'
+    
+    // Shared internal API module
+    compileOnly project(":api")
+}
